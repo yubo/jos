@@ -1,0 +1,3 @@
+[submodule "lab"]
+	path = lab
+	url = git@github.com:yubo/2014-jos.git

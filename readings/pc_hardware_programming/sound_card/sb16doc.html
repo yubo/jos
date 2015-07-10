@@ -1,0 +1,481 @@
+<HTML>
+
+<HEAD>
+<TITLE> Sound Blaster 16 Programming Document </TITLE>
+</HEAD>
+
+<BODY>
+
+<CENTER>
+<H1> <STRONG> Sound Blaster 16 Programming Document </STRONG> </H1>
+<H1>          Written by Ethan Brodsky                        </H1>
+<H1>          Version 3.5 - 6/26/97                           </H1>
+</CENTER>
+
+<HR>
+
+<H5> Note: 97/6/11 </H5>
+I am experimenting with using transparency in the images to allow
+irregularly-shaped diagrams without making assumptions about your
+browser's background color.  If the DSP command or mode diagrams
+are blue, please contact me with information on your configuration
+so I can attempt to fix it.
+
+<HR>
+
+<A HREF="sb16doc.zip">  Download SB16DOC.ZIP  </A> (6,509 bytes) <BR>
+
+
+<HR>
+
+<H2> Jump to section: </H2>
+<UL>
+  <LI> <A HREF="#Disclaimer">   Disclaimer </A>
+  <LI> <A HREF="#Introduction"> Introduction </A>
+  <LI> <A HREF="#DSPPorts">     Sound Blaster 16 DSP I/O Ports </A>
+  <LI> <A HREF="#ResetDSP">     Resetting the DSP </A>
+  <LI> <A HREF="#WriteDSP">     Writing to the DSP </A>
+  <LI> <A HREF="#ReadDSP">      Reading from the the DSP </A>
+  <LI> <A HREF="#DMAProg">      Programming the DMA Controller </A>
+  <LI> <A HREF="#SamplingRate"> Setting the sampling rate </A>
+  <LI> <A HREF="#SoundIO">      Digitized sound I/O </A>
+  <LI> <A HREF="#DSPCommands">  DSP Commands </A>
+  <LI> <A HREF="#AutoInit">     Auto-initialized DMA </A>
+  <LI> <A HREF="#References">   References </A>
+</UL>
+
+
+<HR>
+
+
+<CENTER> <H2> <A NAME="Disclaimer"> Disclaimer </A> </H2> </CENTER>
+
+This information is distributed AS IS.  The author specifically disclaims
+responsibility for any loss of profit or any consequential, incidental,
+or other damages resulting from the use or misuse of this information.
+This information may be freely distributed in any form as long as this
+disclaimer remains intact.
+
+
+<CENTER> <H2> <A NAME="Introduction"> Introduction </A> </H2> </CENTER>
+
+The Sound Blaster 16 is capable of both FM and digitized sounds.  Digitized
+sound capibilities range from 8-bit mono 5000 HZ sound all the way up to
+16-bit stereo sound at 44khz.  This FAQ documents programming the SB16 DSP
+CT1341 chip for recording and playback of digitized audio.  Prior knowledge
+on programming earlier Sound Blaster sound cards is necessary.
+
+
+
+
+<CENTER> <H2> <A NAME="DSPPorts"> The Sound Blaster 16 DSP I/O Ports </A> </H2> </CENTER>
+
+The SB16's DSP chip is programming using several I/O ports at a base I/O
+address determined by jumper settings.  On the SB16, there are 16 I/O ports
+which are used for FM synthesized music, mixer settings, DSP programming and
+CD-ROM access.  Five of these ports are used in programming the DSP.  They
+are listed below.
+
+<UL>
+  <LI> 2x6h - DSP Reset
+  <LI> 2xAh - DSP Read
+  <LI> 2xCh - DSP Write (Command/Data), DSP write-buffer status (Bit 7)
+  <LI> 2xEh - DSP Read-buffer status (Bit 7), DSP interrupt acknowledge
+  <LI> 2xFh - DSP 16-bit interrupt acknowledge
+</UL>
+
+
+
+
+<CENTER> <H2> <A NAME="ResetDSP"> Resetting the DSP </A> </H2> </CENTER>
+
+You have to reset the DSP before you can program it.  The DSP can be reset
+using the following procedure:
+<OL>
+  <LI> Write a 1 to the reset port (2x6)
+  <LI> Wait for 3 microseconds
+  <LI> Write a 0 to the reset port (2x6)
+  <LI> Poll the read-buffer status port (2xE) until bit 7 is set
+  <LI> Poll the read data port (2xA) until you receive an AA
+</OL>
+
+The DSP usually takes about 100 microseconds to initialized itself.  After
+this period of time, if the return value is not AA or there is no data at
+all, then the SB card may not be installed or an incorrect I/O address is
+being used.
+
+
+
+
+<CENTER> <H2> <A NAME="WriteDSP"> Writing to the DSP </A> </H2> </CENTER>
+
+To write a byte to the SB16, the following procedure should be used:
+<OL>
+  <LI> Read the write-buffer status port (2xC) until bit 7 is cleared
+  <LI> Write the value to the write port (2xC)
+</OL>
+
+
+
+
+<CENTER> <H2> <A NAME="ReadDSP"> Reading from the DSP </A> </H2> </CENTER>
+
+To read a byte from the SB16, the following procedure should be used:
+<OL>
+  <LI> Read the read-buffer status port (2xE) until bit 7 is set
+  <LI> Read the value from the read port (2xA)
+</OL>
+
+
+
+
+<CENTER> <H2> <A NAME="DMAProg"> Programming the DMA Controller </A> </H2> </CENTER>
+
+The DMA (Direct Memory Access) controller controls data transfers between
+I/O devices and memory without using the CPU.  An Intel 8237 DMAC integrated
+circut is used to control this.  An IBM compatible computer has two DMA
+controllers, one for 8-bit transfers and one for 16-bit transfers.  The DMA
+controller, coupled with an external page register, is capable of transfering
+blocks of up 64k to the SB16.  Here is information on I/O ports and register
+settings necessary for sound card I/O:
+
+<H4> I/O port addresses for the DMA Address and Count Registers </H4>
+<IMG SRC="dmaaddr.gif" WIDTH=348 HEIGHT=380>
+
+<H4> I/O port addresses for the control registers </H4>
+<IMG SRC="dmactrl.gif" WIDTH=339 HEIGHT=112>
+
+<H4> I/O port addresses for lower page registers </H4>
+<IMG SRC="dmapages.gif" WIDTH=317 HEIGHT=177>
+
+<H4> Mode register bit assignments </H4>
+<IMG SRC="dmamodes.gif" WIDTH=280 HEIGHT=484>
+
+<H4> Write single mask bit assignments </H4>
+<IMG SRC="dmamasks.gif" WIDTH=297 HEIGHT=228>
+
+<P>
+
+DMAC2 is used for 16-bit I/O and DMAC1 is used for 8-bit I/O.  The procedure
+for starting a transfer is complicated, so I'll list the steps for starting
+the type of DMA transfers used for sound I/O:
+
+<OL>
+  <LI>   Calculate the absolute linear address of your buffer <BR>
+  <PRE>  LinearAddr := Seg(Ptr^)*16 + Ofs(Ptr^)); </PRE>
+
+  <LI>   Disable the sound card DMA channel by setting the appropriate mask bit <BR>
+  <PRE>  Port[MaskPort] := 4 + (Channel mod 4); </PRE>
+
+  <LI>   Clear the byte pointer flip-flop <BR>
+  <PRE>  Port[ClrBytePtr] := AnyValue; </PRE>
+
+  <LI>   Write the DMA mode for the transfer <BR>
+         The mode selection bits should be set to 01 for single-mode.  The
+         address inc/dec bit should be set to 0 for address increment.  The
+         auto-initialization bit should be set appropriately.  I will discuss
+         auto-initialized DMA later.  The transfer bits should be set to 10
+         for playback and 01 for recording.  The channel select should be
+         set to the sound card DMA channel.  Be aware that "read" means a
+         read from memory (Write to sound card) and that "write" means a
+         write to system memory.
+  <PRE>  Port[ModePort] := Mode + (Channel mod 4); </PRE>
+
+         Some often used modes are:
+         <UL>
+           <LI> <STRONG> 48h+Channel </STRONG>- Single-cycle playback
+           <LI> <STRONG> 58h+Channel </STRONG>- Auto-initialized playback
+           <LI> <STRONG> 44h+Channel </STRONG>- Single-cycle record
+           <LI> <STRONG> 54h+Channel </STRONG> - Auto-initialized recording
+         </UL>
+         <P>
+
+  <LI>   Write the offset of the buffer, low byte followed by high byte.
+         For sixteen bit data, the offset should be in words from the
+         start of a 128kbyte page. The easiest method for computing
+         16-bit parameters is to divide the linear address by two before
+         calculating offset.
+<PRE>if SixteenBit
+  then
+    begin
+      BufOffset := (LinearAddr div 2) mod 65536;
+      Port[BaseAddrPort] := Lo(BufOffset);
+      Port[BaseAddrPort] := Hi(BufOffset);
+    end
+  else
+    begin
+      BufOffset := LinearAddr mod 65536;
+      Port[BaseAddrPort] := Lo(BufOffset);
+      Port[BaseAddrPort] := Hi(BufOffset);
+    end;
+</PRE>
+
+  <LI>   Write the transfer length, low byte followed by high byte.  For
+         an 8-bit transfer, write the number of bytes-1.  For a 16-bit
+         transfer, write the number of words-1.
+  <PRE>  Port[CountPort] := Lo(TransferLength-1);
+         Port[CountPort] := Hi(TransferLength-1); </PRE>
+
+  <LI>   Write the buffer page to the DMA page register.
+  <PRE>  Port[PagePort] := LinearAddr div 65536; </PRE>
+
+  <LI>   Enable the sound card DMA channel by clearing the appropriate
+         mask bit
+  <PRE>  Port[MaskPort] := DMAChannel mod 4; </PRE>
+</OL>
+
+
+
+
+<CENTER> <H2> <A NAME="SamplingRate"> Setting the sampling rate </A> </H2> </CENTER>
+
+Unlike earlier Sound Blasters, the SB16 is programmed with actual sampling
+rates instead of time constants.  On the SB16, the sampling rate is set
+using DSP commands 41h and 42h.  Command 41h is used for output and 42h is
+used for input.  I have heard that on the SB16, both these command currently
+do the same thing, but I would recommend using the individual commands to
+guarantee compatibility with future sound cards.  The procedure for setting
+the sampling rate is:
+<OL>
+  <LI>   Write the command (41h for output rate, 42h for input rate)
+  <LI>   Write the high byte of the sampling rate (56h for 22050 hz)
+  <LI>   Write the low byte of the sampling rate  (22h for 22050 hz)
+</OL>
+
+
+
+
+<CENTER> <H2> <A NAME="SoundIO"> Digitized sound I/O </A> </H2> </CENTER>
+
+<STRONG> To record or play back sound, you should use the following sequence: </STRONG>
+<OL>
+  <LI>  Allocate a buffer that does not cross a 64k physical page boundary
+  <LI>  Install an interrupt service routine
+  <LI>  Program the DMA controller for background transfer
+  <LI>  Set the sampling rate
+  <LI>  Write the I/O command to the DSP
+  <LI>  Write the I/O transfer mode to the DSP
+  <LI>  Write the block size to the DSP (Low byte/high byte)
+</OL>
+
+<P>
+
+<STRONG> Upon interrupt when using single-cycle DMA: </STRONG>
+<OL>
+  <LI>  Program DMA controller for next block
+  <LI>  Program DSP for next block
+  <LI>  Copy next block if double-buffering
+  <LI>  Acknowledge the interrupt with the SB by reading from port 2xE for
+        8-bit sound or port 2xF for 16-bit sound.
+  <LI>  Acknowledge the end of interrupt with the PIC by writing 20h to port
+        20h.  If the sound card is on IRQ8-15, you must also write 20h to A0h.
+</OL>
+
+
+
+
+<CENTER> <H2> <A NAME="DSPCommands"> DSP commands </A> </H2> </CENTER>
+
+<DL>
+  <DT> <STRONG> D0 </STRONG>
+  <DD> Pause 8-bit DMA mode digitized sound I/O initiated by command Cxh. <BR>
+       Applicable to both single-cycle and auto-initialized DMA I/O.
+  <DT> <STRONG> D4 </STRONG>
+  <DD> Continue 8-bit DMA mode digitized sound I/O paused using command D0. <BR>
+       Applicable to both single-cycle and auto-initialzied DMA I/O.
+  <DT> <STRONG> D5 </STRONG>
+  <DD> Pause 16-bit DMA mode digitized sound I/O initiated by command Bxh. <BR>
+       Applicable to both single-cycle and auto-initialized DMA I/O.
+  <DT> <STRONG> D6 </STRONG>
+  <DD> Continue 16-bit DMA mode digitized sound I/O paused using command D5. <BR>
+       Applicable to both single-cycle and auto-initialized DMA I/O.
+  <DT> <STRONG> D9 </STRONG>
+  <DD> Exit 16-bit auto-initialized DMA mode digitized sound I/O after the
+       end of the current block.
+  <DT> <STRONG> DA </STRONG>
+  <DD> Exit 8-bit auto-initialized DMA mode digitized sound I/O after the
+       end of the current block.
+  <DT> <STRONG> E1 </STRONG>
+  <DD> Get DSP version number.  After sending this command, read back two
+       bytes form the DSP.  The first byte is the major version number and
+       the second byte is the minor version number.  A SB16 should have a
+       DSP version of 4.00 or greater.  Check this before using an SB16
+       specific commands.
+  <DT> <STRONG> Bx </STRONG>
+  <DD> Program 16-bit DMA mode digitized sound I/O <BR>
+       Command sequence:  Command, Mode, Lo(Length-1), Hi(Length-1)
+       <P>
+       <STRONG> Command: </STRONG> <BR>
+       <IMG SRC="dspcmds.gif" WIDTH=513 HEIGHT=92>
+
+       <BR>
+       <STRONG> Common commands: </STRONG>
+       <UL>
+         <LI> <STRONG> B8 </STRONG> - 16-bit single-cycle input
+         <LI> <STRONG> B0 </STRONG> - 16-bit single-cycle output
+         <LI> <STRONG> BE </STRONG> - 16-bit auto-initialized input
+         <LI> <STRONG> B6 </STRONG> - 16-bit auto-initialized output
+       </UL>
+
+       <P>
+
+       <STRONG> Mode: </STRONG>
+       <IMG SRC="dspmodes.gif" WIDTH=662 HEIGHT=92>
+
+  <P>  <! Put a little space between the diagram and the next command>
+
+  <DT> <STRONG> Cx </STRONG>
+  <DD> Program 8-bit DMA mode digitized sound I/O <BR>
+       Same procedure as 16-bit sound I/O using command Bx
+
+       <BR>
+
+       <STRONG> Common commands: </STRONG>
+       <UL>
+         <LI> <STRONG> C8 </STRONG> - 8-bit single-cycle input
+         <LI> <STRONG> C0 </STRONG> - 8-bit single-cycle output
+         <LI> <STRONG> CE </STRONG> - 8-bit auto-initialized input
+         <LI> <STRONG> C6 </STRONG> - 8-bit auto-initialized output
+       </UL>
+</DL>
+<P>
+
+The FIFO is used to eliminate inconsistencies in the sample period
+when the sound card is not able to get DMA when it needs it.  With
+FIFO disabled, the card attempts DMA at precisely the instant that
+it needs a sample.  If another device with a higher priority is
+accessing DMA, the sound card waits for the sample and the sampling
+rate may be decreased.  The FIFO allows the DMA sample period to be
+more erratic without affecting the audio quality.  The FIFO is cleared
+whenever a command is sent to the DSP.  In Single-cycle mode, the DSP
+is constantly being reprogrammed.  The FIFO may still contain data which
+has not been output when it cleared.  To avoid this problem, the FIFO
+should be turned off for single-cycle mode.  When in auto-initialized
+mode, the DSP is never reprogrammed.  The FIFO can be left on and sound
+quality will be improved.
+
+
+
+
+<CENTER> <H2> <A NAME="AutoInit"> Auto-initialized DMA </A> </H2> </CENTER>
+
+When single-cycle DMA is used, sound output stops at the end of each block.
+The interrupt handler can start another transfer, but there will be a break
+in output.  This causes a click between each block, reducing sound quality.
+When auto-initialized DMA is used, sound output loops around at the end of
+the buffer.  The DMA controller keeps transfering the same block of memory
+that the DMA transfer was initiated with.  When the end of the buffer is
+reached, it will start sending the buffer again by auto-initializing the
+current offset and count registers with the values stored in the base offset
+and count registers.  The usual method for achieving click-less output is to
+allocate a buffer and divide it into two blocks.  Program the DMA controller
+with the length of the whole buffer, but program the SB16 with the length of
+a block. (Half of the buffer)  An interrupt occurs for each sound card block,
+so two interrupts will occur each time the buffer is played, once at the
+midpoint (Start of the second block) and once at the end (In effect, the
+start of the first block)  The interrupt handler should copy data into the
+block that was just finished so that the data is ready when it is needed for
+output.  The programming procedure for an auto-initialized DMA transfer is
+identical to the procedure for a single-cycle DMA transfer, except that bit
+4 of the DMA mode register and bit 3 of the DSP command are set.
+
+<P>
+
+<STRONG> Upon interrupt when using auto-initialized DMA: </STRONG>
+<OL>
+  <LI>  Copy next chunk into output buffer block that just finished
+  <LI>  Acknowledge the interrupt with the SB by reading from port 2xE for
+        8-bit sound or port 2xF for 16-bit sound.
+  <LI>  Acknowledge the end of interrupt with the PIC by writing 20h to port
+        20h. If the sound card is on IRQ8-15, you must also write 20h to A0h.
+</OL>
+
+<P>
+
+<STRONG> To stop sound immediately: </STRONG>
+<UL>
+  <LI>  <STRONG> 8-bit  </STRONG> - Write DSP command D0h (Pause 8-bit DMA mode digitized sound I/O)
+  <LI>  <STRONG> 16-bit </STRONG> - Write DSP command D5h (Pause 16-bit DMA mode digitized sound I/O)
+</UL>
+Both commands stop sound immediately, without an interrupt.
+
+<P>
+
+<STRONG> To stop the sound at the end of the currently block: </STRONG>
+<UL>
+  <LI>  <STRONG> 8-bit  </STRONG> - Write DSP command DAh (Stop 8-bit auto-init DMA sound I/O)
+  <LI>  <STRONG> 16-bit </STRONG> - Write DSP command D9h (Stop 16-bit auto-init DMA sound I/O)
+</UL>
+These two commands will stop the sound at the end of the current block.
+If your program is not prepared for an interrupt after output is finished,
+it may cause problems.
+
+<P>
+
+You can also end auto-initialized mode by reprogramming the DSP for
+single-cycle mode.  The card then switches from A/I mode to S/C mode after
+the next interrupt.  It will then contiue to play or record for the length
+specified, generate an interrupt and stop.  This will allow you to stop
+output exactly at the end of the data, without requiring the remainder of
+the DMA buffer to be filled with silence.  This technique may or may not
+be useful to you.  I would recommend using the pause commands documented
+in in the immediate stop section unless another method is more suited to
+your purpose.
+
+
+
+
+<CENTER> <H2> <A NAME="References"> References </A> </H2> </CENTER>
+
+<UL>
+  <LI> <STRONG> Title </STRONG> - <A HREF="http://developer.soundblaster.com/dev-resources/code.html"> - Developer Kit for the Sound Blaster Series, Second Edition. </A>
+  <LI> <STRONG> Publisher </STRONG> - <A HREF="http://www.creaf.com"> Creative Technology Ltd. </A>
+  <P>
+  <LI> <STRONG> Title </STRONG> 486 Microcomputer Model 401 Board Technical Reference Manual
+  <LI> <STRONG> Publisher </STRONG> - <A HREF="http://www.intel.com"> Intel Corporation </A>
+  <LI> <STRONG> Order-number </STRONG> - 504366-002
+  <P>
+  <LI> <STRONG> Title </STRONG> - 8237A High Performance Programmable DMA Controller specs
+  <LI> <STRONG> Publisher </STRONG> - <A HREF="http://www.intel.com"> Intel Corporation </A>
+  <LI> <STRONG> Order-number </STRONG> - 231466-005
+  <P>
+  <LI> <STRONG> Title </STRONG> - 8259A Programmable Interrupt Controller specs
+  <LI> <STRONG> Publisher </STRONG> - <A HREF="http://www.intel.com"> Intel Corporation </A>
+  <LI> <STRONG> Order-number </STRONG> - 231468-003
+  <P>
+  <LI> <STRONG> Title </STRONG> - <A HREF="../smix/smix.html"> SMIX Sound System </A>
+  <LI> <STRONG> Author </STRONG> - Ethan Brodsky
+  <P>
+  <LI> <STRONG> Title </STRONG> - <A HREF="../other/code.html#sb16snd"> SB16SND Sound Code </A>
+  <LI> <STRONG> Author </STRONG> - Ethan Brodsky
+</UL>
+
+<P>
+
+Thanks to <STRONG> Douglas Kaden </STRONG> at <A HREF="http://www.creaf.com"> Creative Labs </A>
+for information on 16-bit DMA, FIFO mode, and other topics.
+<P>
+
+<HR>
+
+<A HREF="../index.html">
+<STRONG> Back to Home Page </STRONG>
+</A> <BR>
+
+<A HREF="../smix/smix.html">
+<STRONG> View SMIX information </STRONG>
+</A> <BR>
+
+<A HREF="../other/code.html#SB16SND">
+<STRONG> View SB16SND information </STRONG>
+</A> <BR>
+
+<HR>
+
+<ADDRESS>
+<A HREF="mailto:brodskye@cae.wisc.edu"> <I> Ethan Brodsky &lt;brodskye@cae.wisc.edu&gt; </I> </A>
+</ADDRESS>
+
+</BODY>
+
+</HTML>
